@@ -4,6 +4,7 @@ pub enum ManagerToExecutorResMsg {
 }
 #[derive(Debug, Clone)]
 pub enum ExecutorToManagerResMsg {
-    StartGameResponse,
+    InitGameResponse,
     QuitGameResponse,
+    ExecuteGameResponse,
 }

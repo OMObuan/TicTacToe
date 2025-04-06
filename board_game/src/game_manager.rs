@@ -1,8 +1,8 @@
-use std::time::Duration;
+use std::sync::Arc;
 
-use tokio::{
-    sync::mpsc::{self, error::SendError},
-    time::sleep,
+use tokio::sync::{
+    Mutex,
+    mpsc::{self, error::SendError},
 };
 use tracing::trace;
 
@@ -30,8 +30,8 @@ pub enum GameManagerError {
 pub struct GameManager {
     pub board: Board,
     pub players: [Player; PLAYER_NUM],
-    pub rx: Option<mpsc::Receiver<ExecutorToManagerMsg>>,
-    pub tx: Option<mpsc::Sender<ManagerToExecutorMsg>>,
+    pub rx: Option<Arc<Mutex<mpsc::Receiver<ExecutorToManagerMsg>>>>,
+    pub tx: Option<Arc<Mutex<mpsc::Sender<ManagerToExecutorMsg>>>>,
 }
 
 impl GameManager {
@@ -45,45 +45,85 @@ impl GameManager {
     }
 
     pub fn set_rx(mut self, rx: mpsc::Receiver<ExecutorToManagerMsg>) -> Self {
-        self.rx = Some(rx);
+        self.rx = Some(Arc::new(Mutex::new(rx)));
         self
     }
 
     pub fn set_tx(mut self, tx: mpsc::Sender<ManagerToExecutorMsg>) -> Self {
-        self.tx = Some(tx);
+        self.tx = Some(Arc::new(Mutex::new(tx)));
         self
     }
 
-    pub async fn start(&mut self) -> Result<(), GameManagerError> {
-        let tx = self.tx.as_ref().ok_or(GameManagerError::ChannelError)?;
-        let rx = self.rx.as_mut().ok_or(GameManagerError::ChannelError)?;
-        tx.send(ManagerToExecutorMsg::Request(
-            ManagerToExecutorReqMsg::InitGameRequest,
-        ))
-        .await?;
-        while let Some(message) = rx.recv().await {
+    pub fn get_rx(
+        &self,
+    ) -> Result<Arc<Mutex<mpsc::Receiver<ExecutorToManagerMsg>>>, GameManagerError> {
+        self.rx.clone().ok_or(GameManagerError::ChannelError)
+    }
+
+    pub fn get_tx(
+        &self,
+    ) -> Result<Arc<Mutex<mpsc::Sender<ManagerToExecutorMsg>>>, GameManagerError> {
+        self.tx.clone().ok_or(GameManagerError::ChannelError)
+    }
+
+    pub async fn start(&self) -> Result<(), GameManagerError> {
+        let (tx, rx) = (self.get_tx()?, self.get_rx()?);
+        tx.lock()
+            .await
+            .send(ManagerToExecutorMsg::Request(
+                ManagerToExecutorReqMsg::InitGameRequest,
+            ))
+            .await?;
+        while let Some(message) = rx.lock().await.recv().await {
             match message {
                 ExecutorToManagerMsg::Request(request_message) => match request_message {
                     ExecutorToManagerReqMsg::ReadyToQuitGameRequest => {
-                        trace!("ready to quit game");
-                        tx.send(ManagerToExecutorMsg::Request(
-                            ManagerToExecutorReqMsg::QuitGameRequest,
-                        ))
-                        .await?;
+                        self.ready_to_quit_game().await?;
                     }
                 },
                 ExecutorToManagerMsg::Response(response_message) => match response_message {
-                    ExecutorToManagerResMsg::StartGameResponse => {
-                        trace!("execute the game");
-                        sleep(Duration::from_secs(1)).await;
+                    ExecutorToManagerResMsg::InitGameResponse => {
+                        self.process_init_game_response().await?;
                     }
                     ExecutorToManagerResMsg::QuitGameResponse => {
                         trace!("quit game");
                         break;
                     }
+                    ExecutorToManagerResMsg::ExecuteGameResponse => {
+                        self.process_execute_game_response().await?;
+                    }
                 },
             }
         }
+        Ok(())
+    }
+
+    pub async fn ready_to_quit_game(&self) -> Result<(), GameManagerError> {
+        let tx = self.get_tx()?;
+        trace!("ready to quit game");
+        tx.lock()
+            .await
+            .send(ManagerToExecutorMsg::Request(
+                ManagerToExecutorReqMsg::QuitGameRequest,
+            ))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn process_init_game_response(&self) -> Result<(), GameManagerError> {
+        let tx = self.get_tx()?;
+        trace!("execute the game");
+        // sleep(Duration::from_secs(1)).await;
+        tx.lock()
+            .await
+            .send(ManagerToExecutorMsg::Request(
+                ManagerToExecutorReqMsg::ExecuteGameRequest,
+            ))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn process_execute_game_response(&self) -> Result<(), GameManagerError> {
         Ok(())
     }
 }
