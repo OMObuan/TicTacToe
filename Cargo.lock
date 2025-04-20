@@ -961,6 +961,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tui_game"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "board_game",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"

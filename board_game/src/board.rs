@@ -4,14 +4,14 @@ use crate::{
 };
 
 pub struct Board {
-    pub board: [[Option<Tile>; WIDTH]; HEIGHT],
+    pub board: Vec<Vec<Option<Tile>>>,
 }
 
 impl Board {
     pub fn new() -> Self {
-        Board {
-            board: [[None; WIDTH]; HEIGHT],
-        }
+        let board = vec![vec![None; WIDTH]; HEIGHT];
+
+        Board { board }
     }
 }
 

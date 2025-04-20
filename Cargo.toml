@@ -1,10 +1,10 @@
 [workspace]
-members = ["board_game"]
+members = ["board_game", "tui_game"]
 resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
-rust-version = "1.28"
+rust-version = "1.85"
 edition = "2024"
 
 [workspace.dependencies]

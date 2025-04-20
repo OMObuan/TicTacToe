@@ -1,6 +1,6 @@
 use crate::player::Player;
 
-#[derive(Copy, Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Tile {
     pub owner: Option<Player>,
 }

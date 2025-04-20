@@ -1,9 +1,11 @@
-#[derive(Copy, Clone)]
-pub struct Player {}
+#[derive(Clone, Debug, PartialEq)]
+pub struct Player {
+    pub id: usize,
+}
 
 impl Player {
     pub fn new() -> Self {
-        Player {}
+        Player { id: 0 }
     }
 }
 
