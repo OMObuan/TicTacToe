@@ -1,10 +1,24 @@
-use std::sync::Arc;
+use std::{io::stdout, sync::Arc};
 
+use anyhow::anyhow;
 use board_game::{
     game_executor::{GameExecutor, GameExecutorError},
     game_manager::{self, GameManagerError},
 };
-use tokio::{join, sync::mpsc, task::JoinHandle};
+
+use ratatui::{
+    Terminal,
+    crossterm::{
+        execute,
+        terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    },
+    prelude::{Backend, CrosstermBackend},
+};
+use tokio::{
+    join,
+    sync::{Mutex, mpsc},
+    task::JoinHandle,
+};
 use tracing_appender::non_blocking::NonBlocking;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt as _, util::SubscriberInitExt as _};
 use tui_game::TuiGameExecutor;
@@ -24,6 +38,43 @@ async fn main() -> anyhow::Result<()> {
         )
         .with(EnvFilter::from_default_env().add_directive("trace".parse().unwrap()))
         .init();
+
+    color_eyre::install().map_err(|err| anyhow!("install error: {err}"))?;
+    let mut stdout = std::io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    enable_raw_mode()?;
+    set_panic_hook();
+    let backend = CrosstermBackend::new(stdout);
+    let terminal = Arc::new(Mutex::new(ratatui::Terminal::new(backend)?));
+    let result = run(terminal.clone()).await;
+    // ratatui::restore();
+    if let Err(err) = &result {
+        tracing::error!("{err}");
+    }
+    let mut terminal = terminal.lock().await;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    disable_raw_mode()?;
+    result
+}
+
+fn set_panic_hook() {
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let _ = restore(); // ignore any errors as we are already failing
+        hook(panic_info);
+    }));
+}
+
+/// Restore the terminal to its original state
+pub fn restore() -> anyhow::Result<()> {
+    execute!(stdout(), LeaveAlternateScreen)?;
+    disable_raw_mode()?;
+    Ok(())
+}
+
+async fn run<B: Backend + std::marker::Send + std::marker::Sync + 'static>(
+    terminal: Arc<Mutex<Terminal<B>>>,
+) -> anyhow::Result<()> {
     let (manager_to_executor_tx, manager_to_executor_rx) = mpsc::channel(32);
     let (executor_to_manager_tx, executor_to_manager_rx) = mpsc::channel(32);
 
@@ -34,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let game_executor = Arc::new(
-        TuiGameExecutor::new()
+        TuiGameExecutor::new(terminal)
             .set_rx(manager_to_executor_rx)
             .set_tx(executor_to_manager_tx),
     );

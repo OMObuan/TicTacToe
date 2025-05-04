@@ -29,6 +29,10 @@ pub enum GameExecutorError {
     JoinError(#[from] tokio::task::JoinError),
     #[error("Not at game")]
     NotAtGame,
+    #[error("Io error: {0:?}")]
+    IoError(#[from] std::io::Error),
+    #[error("Unknown error: {0:?}")]
+    Unknown(#[from] anyhow::Error),
 }
 
 #[async_trait]

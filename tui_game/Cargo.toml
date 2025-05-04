@@ -11,4 +11,9 @@ anyhow.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true
 async-trait.workspace = true
+color-eyre.workspace = true
+ratatui.workspace = true
+num_enum.workspace = true
+crossterm.workspace = true
+futures.workspace = true
 board_game = { path = "../board_game" }
